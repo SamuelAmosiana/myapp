@@ -133,6 +133,18 @@
                     <!-- Login Form -->
                     <form id="loginForm" method="POST" action="process_login.php">
                         <div class="mb-3">
+                            <label for="role" class="form-label">
+                                <i class="fas fa-user-tag"></i> Select Role
+                            </label>
+                            <select class="form-control" id="role" name="role" required>
+                                <option value="">-- Select Role --</option>
+                                <option value="admin">Admin</option>
+                                <option value="lecturer">Lecturer</option>
+                                <option value="class_rep">Class Rep</option>
+                                <option value="student">Student</option>
+                            </select>
+                        </div>
+                        <div id="studentFields" class="mb-3 d-none">
                             <label for="student_id" class="form-label">
                                 <i class="fas fa-id-card"></i> Student ID
                             </label>
@@ -141,13 +153,25 @@
                                    id="student_id" 
                                    name="student_id" 
                                    placeholder="Enter your Student ID (e.g., 2104035934)"
-                                   required
                                    autocomplete="username">
                             <div class="form-text">
                                 <i class="fas fa-lock"></i> Your Student ID is used as both username and password
                             </div>
                         </div>
-                        
+                        <div id="adminLecturerFields" class="d-none">
+                            <div class="mb-3">
+                                <label for="email" class="form-label">
+                                    <i class="fas fa-envelope"></i> Email
+                                </label>
+                                <input type="email" class="form-control" id="email" name="email" placeholder="Enter your email" autocomplete="username">
+                            </div>
+                            <div class="mb-3">
+                                <label for="password" class="form-label">
+                                    <i class="fas fa-lock"></i> Password
+                                </label>
+                                <input type="password" class="form-control" id="password" name="password" placeholder="Enter your password" autocomplete="current-password">
+                            </div>
+                        </div>
                         <button type="submit" class="btn btn-login" id="loginBtn">
                             <span id="loginText">
                                 <i class="fas fa-sign-in-alt"></i> Login
@@ -193,15 +217,16 @@
         document.getElementById('loginForm').addEventListener('submit', function(e) {
             e.preventDefault();
             
-            const studentId = document.getElementById('student_id').value.trim();
+            const roleSelect = document.getElementById('role');
+            const role = roleSelect.value;
             const loginBtn = document.getElementById('loginBtn');
             const loginText = document.getElementById('loginText');
             const loginSpinner = document.getElementById('loginSpinner');
             const messageContainer = document.getElementById('message-container');
             
-            // Validate input
-            if (!studentId) {
-                showMessage('Please enter your Student ID', 'danger');
+            // Validate role
+            if (!role) {
+                showMessage('Please select your role.', 'danger');
                 return;
             }
             
@@ -212,7 +237,26 @@
             
             // Create form data
             const formData = new FormData();
-            formData.append('student_id', studentId);
+            formData.append('role', role);
+            if (role === 'student' || role === 'class_rep') {
+                const studentId = document.getElementById('student_id').value.trim();
+                if (!studentId) {
+                    showMessage('Please enter your Student ID', 'danger');
+                    resetButton();
+                    return;
+                }
+                formData.append('student_id', studentId);
+            } else if (role === 'admin' || role === 'lecturer') {
+                const email = document.getElementById('email').value.trim();
+                const password = document.getElementById('password').value;
+                if (!email || !password) {
+                    showMessage('Please enter your email and password', 'danger');
+                    resetButton();
+                    return;
+                }
+                formData.append('email', email);
+                formData.append('password', password);
+            }
             
             // Submit form via AJAX
             fetch('process_login.php', {
@@ -293,6 +337,31 @@
         
         // Auto-focus on student ID input
         document.getElementById('student_id').focus();
+
+        // Role-based field display
+        const roleSelect = document.getElementById('role');
+        const studentFields = document.getElementById('studentFields');
+        const adminLecturerFields = document.getElementById('adminLecturerFields');
+
+        roleSelect.addEventListener('change', function() {
+            const role = this.value;
+            if (role === 'student' || role === 'class_rep') {
+                studentFields.classList.remove('d-none');
+                studentFields.querySelector('input').required = true;
+                adminLecturerFields.classList.add('d-none');
+                adminLecturerFields.querySelectorAll('input').forEach(input => input.required = false);
+            } else if (role === 'admin' || role === 'lecturer') {
+                adminLecturerFields.classList.remove('d-none');
+                adminLecturerFields.querySelectorAll('input').forEach(input => input.required = true);
+                studentFields.classList.add('d-none');
+                studentFields.querySelector('input').required = false;
+            } else {
+                studentFields.classList.add('d-none');
+                adminLecturerFields.classList.add('d-none');
+                studentFields.querySelector('input').required = false;
+                adminLecturerFields.querySelectorAll('input').forEach(input => input.required = false);
+            }
+        });
     </script>
 </body>
 </html>

@@ -4,7 +4,7 @@
  * File: classes/RBAC.php
  */
 
-require_once 'classes/Auth.php';
+require_once __DIR__ . '/Auth.php';
 
 class RBAC {
     private $auth;

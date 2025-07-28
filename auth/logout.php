@@ -1,11 +1,10 @@
 <?php
 /**
  * Logout Script for ClassReserve CHAU
- * File: logout.php
+ * File: auth/logout.php
  */
 
-// Include Auth class
-require_once 'classes/Auth.php';
+require_once __DIR__ . '/../classes/Auth.php';
 
 // Create Auth instance and logout
 $auth = new Auth();

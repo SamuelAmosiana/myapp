@@ -4,7 +4,7 @@
  * File: classes/Auth.php
  */
 
-require_once 'config/Database.php';
+require_once __DIR__ . '/../config/Database.php';
 
 class Auth {
     private $db;
@@ -18,13 +18,13 @@ class Auth {
     }
     
     /**
-     * Login user using Student ID as both username and password
+     * Login user using Student ID as both username and password (for students/class reps)
      * @param string $student_id
+     * @param string $role
      * @return array Result with success status and message
      */
-    public function login($student_id) {
+    public function login($student_id, $role = null) {
         try {
-            // Validate input
             $student_id = trim($student_id);
             if (empty($student_id)) {
                 return [
@@ -32,41 +32,101 @@ class Auth {
                     'message' => 'Student ID is required'
                 ];
             }
-            
-            // Find user by student ID with role information
+            // Find user by student ID and role
             $query = "SELECT u.user_id, u.name, u.email, u.student_id, u.course_id, 
                             u.intake, u.year_of_study, u.department, u.is_active,
                             r.role_name, r.role_id,
                             c.course_name, c.course_code,
-                            p.program_name, p.program_type
+                            p.program_name, p.program_type,
+                            u.password_hash
                      FROM users u
                      JOIN roles r ON u.role_id = r.role_id
                      LEFT JOIN courses c ON u.course_id = c.course_id
                      LEFT JOIN programs p ON c.program_id = p.program_id
-                     WHERE u.student_id = :student_id AND u.is_active = 1";
-            
-            $user = $this->db->fetchOne($query, ['student_id' => $student_id]);
-            
+                     WHERE u.student_id = :student_id AND r.role_name = :role_name AND u.is_active = 1";
+            $user = $this->db->fetchOne($query, ['student_id' => $student_id, 'role_name' => $role]);
             if (!$user) {
                 return [
                     'success' => false,
-                    'message' => 'Invalid Student ID. Please check and try again.'
+                    'message' => 'Invalid Student ID or role. Please check and try again.'
                 ];
             }
-            
-            // Student ID matches (acts as password), login successful
+            // For students/class reps, Student ID is used as password as well
+            if ($user['student_id'] !== $student_id) {
+                return [
+                    'success' => false,
+                    'message' => 'Invalid Student ID or password.'
+                ];
+            }
             $this->createSession($user);
             $this->updateLastLogin($user['user_id']);
-            
             return [
                 'success' => true,
                 'message' => 'Login successful! Welcome ' . $user['name'],
                 'user' => $user,
                 'redirect' => $this->getRedirectUrl($user['role_name'])
             ];
-            
         } catch (Exception $e) {
             error_log("Login error: " . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Login failed. Please try again.'
+            ];
+        }
+    }
+
+    /**
+     * Login user using email and password (for admin/lecturer)
+     * @param string $email
+     * @param string $password
+     * @param string $role
+     * @return array
+     */
+    public function loginWithEmail($email, $password, $role) {
+        try {
+            $email = trim($email);
+            if (empty($email) || empty($password)) {
+                return [
+                    'success' => false,
+                    'message' => 'Email and password are required.'
+                ];
+            }
+            // Find user by email and role
+            $query = "SELECT u.user_id, u.name, u.email, u.student_id, u.course_id, 
+                            u.intake, u.year_of_study, u.department, u.is_active,
+                            r.role_name, r.role_id,
+                            c.course_name, c.course_code,
+                            p.program_name, p.program_type,
+                            u.password_hash
+                     FROM users u
+                     JOIN roles r ON u.role_id = r.role_id
+                     LEFT JOIN courses c ON u.course_id = c.course_id
+                     LEFT JOIN programs p ON c.program_id = p.program_id
+                     WHERE u.email = :email AND r.role_name = :role_name AND u.is_active = 1";
+            $user = $this->db->fetchOne($query, ['email' => $email, 'role_name' => $role]);
+            if (!$user) {
+                return [
+                    'success' => false,
+                    'message' => 'Invalid email, password, or role.'
+                ];
+            }
+            // For admin/lecturer, compare password directly (stored as plain text in DB)
+            if ($user['password_hash'] !== $password) {
+                return [
+                    'success' => false,
+                    'message' => 'Invalid email or password.'
+                ];
+            }
+            $this->createSession($user);
+            $this->updateLastLogin($user['user_id']);
+            return [
+                'success' => true,
+                'message' => 'Login successful! Welcome ' . $user['name'],
+                'user' => $user,
+                'redirect' => $this->getRedirectUrl($user['role_name'])
+            ];
+        } catch (Exception $e) {
+            error_log("LoginWithEmail error: " . $e->getMessage());
             return [
                 'success' => false,
                 'message' => 'Login failed. Please try again.'
@@ -123,15 +183,15 @@ class Auth {
     private function getRedirectUrl($role_name) {
         switch ($role_name) {
             case 'admin':
-                return 'admin/dashboard.php';
+                return '../dashboards/admin/dashboard.php';
             case 'class_rep':
-                return 'class_rep/dashboard.php';
+                return '../dashboards/class_rep/dashboard.php';
             case 'lecturer':
-                return 'lecturer/dashboard.php';
+                return '../dashboards/lecturer/dashboard.php';
             case 'student':
-                return 'student/dashboard.php';
+                return '../dashboards/student/dashboard.php';
             default:
-                return 'dashboard.php';
+                return 'index.php';
         }
     }
     
