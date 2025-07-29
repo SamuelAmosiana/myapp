@@ -460,31 +460,58 @@ class Auth {
     public function getRecentActivity($limit = 10) {
         $user_id = $this->getUserId();
         
-        $query = "SELECT 'booking' as activity_type, 
-                        booking_id as reference_id,
-                        CONCAT('Booked room ', room_name, ' for ', course_name) as description,
-                        created_at as activity_time
-                 FROM bookings b
-                 JOIN rooms r ON b.room_id = r.room_id
-                 JOIN courses c ON b.course_id = c.course_id
-                 WHERE b.booked_by = :user_id
-                 
-                 UNION ALL
-                 
-                 SELECT 'notification' as activity_type,
-                        notification_id as reference_id,
-                        title as description,
-                        created_at as activity_time
-                 FROM notifications
-                 WHERE user_id = :user_id
-                 
-                 ORDER BY activity_time DESC
-                 LIMIT :limit";
+        // Get recent bookings
+        $bookings_query = "SELECT 
+                            'booking' as activity_type, 
+                            b.booking_id as reference_id,
+                            CONCAT('Booked room ', r.room_name, ' for ', c.course_name) as description,
+                            b.created_at as activity_time
+                         FROM bookings b
+                         JOIN rooms r ON b.room_id = r.room_id
+                         JOIN courses c ON b.course_id = c.course_id
+                         WHERE b.booked_by = :user_id
+                         ORDER BY b.created_at DESC
+                         LIMIT :limit";
         
-        return $this->db->fetchAll($query, [
-            'user_id' => $user_id,
-            'limit' => $limit
-        ]);
+        // Get recent notifications
+        $notifications_query = "SELECT 
+                                'notification' as activity_type,
+                                notification_id as reference_id,
+                                title as description,
+                                created_at as activity_time
+                             FROM notifications
+                             WHERE user_id = :user_id
+                             ORDER BY created_at DESC
+                             LIMIT :limit";
+        
+        try {
+            // Get bookings
+            $bookings = $this->db->fetchAll($bookings_query, [
+                'user_id' => $user_id,
+                'limit' => $limit
+            ]);
+            
+            // Get notifications
+            $notifications = $this->db->fetchAll($notifications_query, [
+                'user_id' => $user_id,
+                'limit' => $limit
+            ]);
+            
+            // Combine and sort by activity_time
+            $all_activities = array_merge($bookings, $notifications);
+            
+            // Sort by activity_time descending
+            usort($all_activities, function($a, $b) {
+                return strtotime($b['activity_time']) - strtotime($a['activity_time']);
+            });
+            
+            // Return only the requested limit
+            return array_slice($all_activities, 0, $limit);
+            
+        } catch (Exception $e) {
+            error_log("GetRecentActivity error: " . $e->getMessage());
+            return [];
+        }
     }
     
     /**
@@ -663,5 +690,67 @@ class Auth {
         
         return $this->db->fetchAll($query, $params);
     }
+    /**
+ * Get pending bookings for approval
+ * @param int $limit
+ * @return array
+ */
+
+/**
+ * Get today's approved classes for a lecturer
+ */
+public function getTodaysClasses($lecturer_id) {
+    $sql = "SELECT b.*, r.room_name, r.location, c.course_name, c.course_code,
+                   u.name as booked_by_name, p.program_name
+            FROM bookings b
+            JOIN rooms r ON b.room_id = r.room_id
+            JOIN courses c ON b.course_id = c.course_id
+            JOIN programs p ON c.program_id = p.program_id
+            JOIN users u ON b.booked_by = u.user_id
+            WHERE b.lecturer_id = :lecturer_id 
+            AND b.booking_date = CURDATE()
+            AND b.status = 'approved'
+            ORDER BY b.start_time ASC";
+
+    return $this->db->fetchAll($sql, ['lecturer_id' => $lecturer_id]);
+}
+
+/**
+ * Get pending bookings for a lecturer
+ */
+public function getPendingBookings($lecturer_id) {
+    $sql = "SELECT b.*, r.room_name, r.location, c.course_name, c.course_code,
+                   u.name as booked_by_name, p.program_name
+            FROM bookings b
+            JOIN rooms r ON b.room_id = r.room_id
+            JOIN courses c ON b.course_id = c.course_id
+            JOIN programs p ON c.program_id = p.program_id
+            JOIN users u ON b.booked_by = u.user_id
+            WHERE b.lecturer_id = :lecturer_id 
+            AND b.status = 'pending'
+            ORDER BY b.created_at DESC";
+
+    return $this->db->fetchAll($sql, ['lecturer_id' => $lecturer_id]);
+}
+
+/**
+ * Get upcoming classes within 7 days
+ */
+public function getUpcomingClasses($lecturer_id) {
+    $sql = "SELECT b.*, r.room_name, r.location, c.course_name, c.course_code,
+                   u.name as booked_by_name, p.program_name
+            FROM bookings b
+            JOIN rooms r ON b.room_id = r.room_id
+            JOIN courses c ON b.course_id = c.course_id
+            JOIN programs p ON c.program_id = p.program_id
+            JOIN users u ON b.booked_by = u.user_id
+            WHERE b.lecturer_id = :lecturer_id 
+            AND b.booking_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+            AND b.status = 'approved'
+            ORDER BY b.booking_date ASC, b.start_time ASC";
+
+    return $this->db->fetchAll($sql, ['lecturer_id' => $lecturer_id]);
+}
+
 }
 ?>

@@ -21,52 +21,11 @@ $rbac->requireRole('lecturer', '../../auth/login.php');
 $currentUser = $auth->getCurrentUser();
 $dashboardStats = $auth->getDashboardStats();
 
-// Get today's classes for this lecturer
-$todaysClasses = $auth->db->fetchAll(
-    "SELECT b.*, r.room_name, r.location, c.course_name, c.course_code,
-            u.name as booked_by_name, p.program_name
-     FROM bookings b
-     JOIN rooms r ON b.room_id = r.room_id
-     JOIN courses c ON b.course_id = c.course_id
-     JOIN programs p ON c.program_id = p.program_id
-     JOIN users u ON b.booked_by = u.user_id
-     WHERE b.lecturer_id = :lecturer_id 
-     AND b.booking_date = CURDATE()
-     AND b.status = 'approved'
-     ORDER BY b.start_time ASC",
-    ['lecturer_id' => $currentUser['user_id']]
-);
+$lecturer_id = $currentUser['user_id'];
 
-// Get pending bookings that need lecturer approval
-$pendingBookings = $auth->db->fetchAll(
-    "SELECT b.*, r.room_name, r.location, c.course_name, c.course_code,
-            u.name as booked_by_name, p.program_name
-     FROM bookings b
-     JOIN rooms r ON b.room_id = r.room_id
-     JOIN courses c ON b.course_id = c.course_id
-     JOIN programs p ON c.program_id = p.program_id
-     JOIN users u ON b.booked_by = u.user_id
-     WHERE b.lecturer_id = :lecturer_id 
-     AND b.status = 'pending'
-     ORDER BY b.created_at DESC",
-    ['lecturer_id' => $currentUser['user_id']]
-);
-
-// Get upcoming classes (next 7 days)
-$upcomingClasses = $auth->db->fetchAll(
-    "SELECT b.*, r.room_name, r.location, c.course_name, c.course_code,
-            u.name as booked_by_name, p.program_name
-     FROM bookings b
-     JOIN rooms r ON b.room_id = r.room_id
-     JOIN courses c ON b.course_id = c.course_id
-     JOIN programs p ON c.program_id = p.program_id
-     JOIN users u ON b.booked_by = u.user_id
-     WHERE b.lecturer_id = :lecturer_id 
-     AND b.booking_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)
-     AND b.status = 'approved'
-     ORDER BY b.booking_date ASC, b.start_time ASC",
-    ['lecturer_id' => $currentUser['user_id']]
-);
+$todaysClasses = $auth->getTodaysClasses($lecturer_id);
+$pendingBookings = $auth->getPendingBookings($lecturer_id);
+$upcomingClasses = $auth->getUpcomingClasses($lecturer_id);
 
 // Get notifications
 $notifications = $auth->getNotifications(false, 10);

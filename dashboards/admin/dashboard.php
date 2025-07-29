@@ -25,17 +25,7 @@ $dashboardStats = $auth->getDashboardStats();
 $recentActivities = $auth->getRecentActivity(10);
 
 // Get pending bookings for approval
-$pendingBookings = $auth->db->fetchAll(
-    "SELECT b.*, r.room_name, c.course_name, u.name as booked_by_name, l.name as lecturer_name
-     FROM bookings b
-     JOIN rooms r ON b.room_id = r.room_id
-     JOIN courses c ON b.course_id = c.course_id
-     JOIN users u ON b.booked_by = u.user_id
-     LEFT JOIN users l ON b.lecturer_id = l.user_id
-     WHERE b.status = 'pending'
-     ORDER BY b.created_at DESC
-     LIMIT 10"
-);
+$pendingBookings = $auth->getPendingBookings(10);
 
 // Get system notifications
 $notifications = $auth->getNotifications(false, 10);
