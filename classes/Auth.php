@@ -751,6 +751,135 @@ public function getUpcomingClasses($lecturer_id) {
 
     return $this->db->fetchAll($sql, ['lecturer_id' => $lecturer_id]);
 }
+/**
+ * Get bookings made by the class rep
+ */
+public function getClassRepBookings($classRepId) {
+    $sql = "SELECT b.*, r.room_name, c.course_name, u.name as lecturer_name
+            FROM bookings b
+            JOIN rooms r ON b.room_id = r.room_id
+            JOIN courses c ON b.course_id = c.course_id
+            LEFT JOIN users u ON b.lecturer_id = u.user_id
+            WHERE b.booked_by = :class_rep_id
+            ORDER BY b.booking_date DESC";
+
+    return $this->db->fetchAll($sql, ['class_rep_id' => $classRepId]);
+}
+public function getPendingApprovals($classRepId) {
+    $sql = "SELECT b.*, r.room_name, c.course_name, u.name as lecturer_name
+            FROM bookings b
+            JOIN rooms r ON b.room_id = r.room_id
+            JOIN courses c ON b.course_id = c.course_id
+            LEFT JOIN users u ON b.lecturer_id = u.user_id
+            WHERE b.booked_by = :class_rep_id AND b.status = 'pending'
+            ORDER BY b.created_at DESC";
+
+    return $this->db->fetchAll($sql, ['class_rep_id' => $classRepId]);
+}
+public function getAvailableRoomsToday() {
+    $sql = "SELECT r.*, 
+                   (SELECT COUNT(*) FROM bookings b 
+                    WHERE b.room_id = r.room_id 
+                    AND b.booking_date = CURDATE() 
+                    AND b.status = 'approved') as bookings_today
+            FROM rooms r 
+            WHERE r.is_available = 1
+            ORDER BY r.room_name";
+
+    return $this->db->fetchAll($sql);
+}
+public function getTodaysBookingsForClassRep($course_id) {
+    $sql = "SELECT b.*, r.room_name, r.location, c.course_name, u.name as lecturer_name
+            FROM bookings b
+            JOIN rooms r ON b.room_id = r.room_id
+            JOIN courses c ON b.course_id = c.course_id
+            JOIN users u ON b.lecturer_id = u.user_id
+            WHERE b.course_id = :course_id 
+            AND b.booking_date = CURDATE()
+            AND b.status = 'approved'
+            ORDER BY b.start_time ASC";
+
+    return $this->db->fetchAll($sql, ['course_id' => $course_id]);
+}
+public function getUpcomingBookingsForClassRep($course_id) {
+    $sql = "SELECT b.*, r.room_name, r.location, c.course_name, u.name as lecturer_name
+            FROM bookings b
+            JOIN rooms r ON b.room_id = r.room_id
+            JOIN courses c ON b.course_id = c.course_id
+            JOIN users u ON b.lecturer_id = u.user_id
+            WHERE b.course_id = :course_id 
+            AND b.booking_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+            AND b.status = 'approved'
+            ORDER BY b.booking_date ASC, b.start_time ASC";
+
+    return $this->db->fetchAll($sql, ['course_id' => $course_id]);
+}
+public function getStudentBookings($student_id) {
+    $sql = "SELECT b.*, r.room_name, c.course_name, c.course_code, p.program_name
+            FROM bookings b
+            JOIN rooms r ON b.room_id = r.room_id
+            JOIN courses c ON b.course_id = c.course_id
+            JOIN programs p ON c.program_id = p.program_id
+            WHERE b.booked_by = :student_id
+            ORDER BY b.booking_date DESC, b.start_time ASC";
+
+    return $this->db->fetchAll($sql, ['student_id' => $student_id]);
+}
+/**
+ * Get upcoming approved classes for a given course (used in student dashboard)
+ */
+public function getUpcomingClassesForStudent($course_id) {
+    $sql = "SELECT b.*, r.room_name, r.location, c.course_name, c.course_code,
+                   l.name as lecturer_name, p.program_name, u.name as booked_by_name
+            FROM bookings b
+            JOIN rooms r ON b.room_id = r.room_id
+            JOIN courses c ON b.course_id = c.course_id
+            JOIN programs p ON c.program_id = p.program_id
+            LEFT JOIN users l ON b.lecturer_id = l.user_id
+            JOIN users u ON b.booked_by = u.user_id
+            WHERE b.course_id = :course_id 
+              AND b.booking_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+              AND b.status = 'approved'
+            ORDER BY b.booking_date ASC, b.start_time ASC";
+
+    return $this->db->fetchAll($sql, ['course_id' => $course_id]);
+}
+/**
+ * Get course info for a student (used in student dashboard)
+ * @param int $course_id
+ * @return array|null
+ */
+public function getCourseInfoForStudent($course_id) {
+    return $this->db->fetchOne(
+        "SELECT c.*, p.program_name, p.program_type
+         FROM courses c
+         JOIN programs p ON c.program_id = p.program_id
+         WHERE c.course_id = :course_id",
+        ['course_id' => $course_id]
+    );
+}
+/**
+ * Get today's approved classes for a student (used in student dashboard)
+ * @param int $course_id
+ * @return array
+ */
+public function getTodaysClassesForStudent($course_id) {
+    $sql = "SELECT b.*, r.room_name, r.location, c.course_name, c.course_code,
+                   l.name as lecturer_name, p.program_name, u.name as booked_by_name
+            FROM bookings b
+            JOIN rooms r ON b.room_id = r.room_id
+            JOIN courses c ON b.course_id = c.course_id
+            JOIN programs p ON c.program_id = p.program_id
+            LEFT JOIN users l ON b.lecturer_id = l.user_id
+            JOIN users u ON b.booked_by = u.user_id
+            WHERE b.course_id = :course_id 
+              AND b.booking_date = CURDATE()  // Only today's classes
+              AND b.status = 'approved'
+            ORDER BY b.start_time ASC";
+
+    $result = $this->db->fetchAll($sql, ['course_id' => $course_id]);
+    return $result ?: []; // Ensure an array is always returned
+}
 
 }
 ?>

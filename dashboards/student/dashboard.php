@@ -1,4 +1,8 @@
 <?php
+// Initialize all variables at the top
+$todaysClasses = [];  // Add this line
+$upcomingBookings = [];
+// ... rest of your existing declarations
 /**
  * Student Dashboard - ClassReserve CHAU
  * File: dashboards/student/dashboard.php
@@ -22,50 +26,40 @@ $currentUser = $auth->getCurrentUser();
 $dashboardStats = $auth->getDashboardStats();
 
 // Get today's classes for this student's course
-$todaysClasses = $auth->db->fetchAll(
-    "SELECT b.*, r.room_name, r.location, c.course_name, c.course_code,
-            l.name as lecturer_name, p.program_name, u.name as booked_by_name
-     FROM bookings b
-     JOIN rooms r ON b.room_id = r.room_id
-     JOIN courses c ON b.course_id = c.course_id
-     JOIN programs p ON c.program_id = p.program_id
-     LEFT JOIN users l ON b.lecturer_id = l.user_id
-     JOIN users u ON b.booked_by = u.user_id
-     WHERE b.course_id = :course_id 
-     AND b.booking_date = CURDATE()
-     AND b.status = 'approved'
-     ORDER BY b.start_time ASC",
-    ['course_id' => $currentUser['course_id']]
-);
+$currentUser = $auth->getCurrentUser();
+$student_id = $currentUser['user_id'];
+$bookings = $auth->getStudentBookings($student_id);
+
 
 // Get upcoming classes (next 7 days)
-$upcomingClasses = $auth->db->fetchAll(
-    "SELECT b.*, r.room_name, r.location, c.course_name, c.course_code,
-            l.name as lecturer_name, p.program_name, u.name as booked_by_name
-     FROM bookings b
-     JOIN rooms r ON b.room_id = r.room_id
-     JOIN courses c ON b.course_id = c.course_id
-     JOIN programs p ON c.program_id = p.program_id
-     LEFT JOIN users l ON b.lecturer_id = l.user_id
-     JOIN users u ON b.booked_by = u.user_id
-     WHERE b.course_id = :course_id 
-     AND b.booking_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)
-     AND b.status = 'approved'
-     ORDER BY b.booking_date ASC, b.start_time ASC",
-    ['course_id' => $currentUser['course_id']]
-);
+$currentUser = $auth->getCurrentUser();
+$course_id = $currentUser['course_id'] ?? null;
+
+// TEMP fallback for testing
+if (!$course_id) {
+    $course_id = 1; // Replace with a real course_id in your DB
+}
+
+$upcomingClasses = $auth->getUpcomingClassesForStudent($course_id);
+
 
 // Get notifications
 $notifications = $auth->getNotifications(false, 10);
 
 // Get course information
-$courseInfo = $auth->db->fetchOne(
-    "SELECT c.*, p.program_name, p.program_type
-     FROM courses c
-     JOIN programs p ON c.program_id = p.program_id
-     WHERE c.course_id = :course_id",
-    ['course_id' => $currentUser['course_id']]
-);
+$currentUser = $auth->getCurrentUser();
+$course_id = $currentUser['course_id'] ?? null;
+
+// TEMP fallback for testing (remove in production)
+if (!$course_id) {
+    $course_id = 1; // Replace with a valid course_id in your DB
+}
+
+// Fetch course info using the Auth method instead of direct $db access
+$courseInfo = $auth->getCourseInfoForStudent($course_id);
+
+// Fetch upcoming classes (as in your example)
+$upcomingClasses = $auth->getUpcomingClassesForStudent($course_id);
 ?>
 
 <!DOCTYPE html>
@@ -294,6 +288,8 @@ $courseInfo = $auth->db->fetchOne(
                                             <i class="fas fa-clock"></i>
                                         </div>
                                         <div>
+                                       
+
                                             <h4 class="mb-0"><?php echo count($todaysClasses); ?></h4>
                                             <small class="text-muted">Today's Classes</small>
                                         </div>

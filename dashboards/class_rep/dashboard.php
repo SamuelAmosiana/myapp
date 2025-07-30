@@ -1,4 +1,6 @@
 <?php
+$upcomingBookings = [];
+
 /**
  * Class Representative Dashboard - ClassReserve CHAU
  * File: dashboards/class_rep/dashboard.php
@@ -25,34 +27,18 @@ $dashboardStats = $auth->getDashboardStats();
 $bookingLimit = $auth->checkDailyBookingLimit();
 
 // Get today's bookings for this class rep
-$todaysBookings = $auth->db->fetchAll(
-    "SELECT b.*, r.room_name, r.location, c.course_name, c.course_code,
-            l.name as lecturer_name, p.program_name
-     FROM bookings b
-     JOIN rooms r ON b.room_id = r.room_id
-     JOIN courses c ON b.course_id = c.course_id
-     JOIN programs p ON c.program_id = p.program_id
-     LEFT JOIN users l ON b.lecturer_id = l.user_id
-     WHERE b.booked_by = :user_id 
-     AND b.booking_date = CURDATE()
-     ORDER BY b.start_time ASC",
-    ['user_id' => $currentUser['user_id']]
-);
+$currentUser = $auth->getCurrentUser();
+$classRepId = $currentUser['user_id'];
+
+$classBookings = $auth->getClassRepBookings($classRepId);
+
 
 // Get upcoming bookings (next 7 days)
-$upcomingBookings = $auth->db->fetchAll(
-    "SELECT b.*, r.room_name, r.location, c.course_name, c.course_code,
-            l.name as lecturer_name, p.program_name
-     FROM bookings b
-     JOIN rooms r ON b.room_id = r.room_id
-     JOIN courses c ON b.course_id = c.course_id
-     JOIN programs p ON c.program_id = p.program_id
-     LEFT JOIN users l ON b.lecturer_id = l.user_id
-     WHERE b.booked_by = :user_id 
-     AND b.booking_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)
-     ORDER BY b.booking_date ASC, b.start_time ASC",
-    ['user_id' => $currentUser['user_id']]
-);
+$currentUser = $auth->getCurrentUser();
+$classRepId = $currentUser['user_id'];
+
+$pendingApprovals = $auth->getPendingApprovals($classRepId);
+
 
 // Get available lecturers for this course
 $availableLecturers = $auth->getAvailableLecturers($currentUser['course_id']);
@@ -61,16 +47,8 @@ $availableLecturers = $auth->getAvailableLecturers($currentUser['course_id']);
 $notifications = $auth->getNotifications(false, 10);
 
 // Get available rooms
-$availableRooms = $auth->db->fetchAll(
-    "SELECT r.*, 
-            (SELECT COUNT(*) FROM bookings b 
-             WHERE b.room_id = r.room_id 
-             AND b.booking_date = CURDATE() 
-             AND b.status = 'approved') as bookings_today
-     FROM rooms r 
-     WHERE r.is_available = 1
-     ORDER BY r.room_name"
-);
+$availableRooms = $auth->getAvailableRoomsToday();
+
 ?>
 
 <!DOCTYPE html>
@@ -316,6 +294,10 @@ $availableRooms = $auth->db->fetchAll(
                                             <i class="fas fa-calendar-check"></i>
                                         </div>
                                         <div>
+                                        <?php
+                                        $course_id = $currentUser['course_id'];  // assuming $currentUser is defined already
+                                        $todaysBookings = $auth->getTodaysBookingsForClassRep($course_id);
+                                        ?>
                                             <h4 class="mb-0"><?php echo count($todaysBookings); ?></h4>
                                             <small class="text-muted">Today's Bookings</small>
                                         </div>
@@ -342,6 +324,7 @@ $availableRooms = $auth->db->fetchAll(
                                             <i class="fas fa-calendar-week"></i>
                                         </div>
                                         <div>
+
                                             <h4 class="mb-0"><?php echo count($upcomingBookings); ?></h4>
                                             <small class="text-muted">Upcoming Bookings</small>
                                         </div>
