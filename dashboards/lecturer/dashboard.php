@@ -207,16 +207,16 @@ $notifications = $auth->getNotifications(false, 10);
                             <a class="nav-link active" href="dashboard.php">
                                 <i class="fas fa-home"></i> Dashboard
                             </a>
-                            <a class="nav-link" href="schedule.php">
+                            <a class="nav-link" href="class_schedule.php">
                                 <i class="fas fa-calendar-alt"></i> My Schedule
                             </a>
-                            <a class="nav-link" href="approvals.php">
+                            <a class="nav-link" href="pending_approvals.php">
                                 <i class="fas fa-check-circle"></i> Pending Approvals
                                 <?php if (count($pendingBookings) > 0): ?>
                                     <span class="badge bg-warning ms-2"><?php echo count($pendingBookings); ?></span>
                                 <?php endif; ?>
                             </a>
-                            <a class="nav-link" href="classes.php">
+                            <a class="nav-link" href="my_classes.php">
                                 <i class="fas fa-book"></i> My Classes
                             </a>
                             <a class="nav-link" href="profile.php">

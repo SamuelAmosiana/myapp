@@ -873,7 +873,7 @@ public function getTodaysClassesForStudent($course_id) {
             LEFT JOIN users l ON b.lecturer_id = l.user_id
             JOIN users u ON b.booked_by = u.user_id
             WHERE b.course_id = :course_id 
-              AND b.booking_date = CURDATE()  // Only today's classes
+              AND b.booking_date = CURDATE() -- Only today's classes
               AND b.status = 'approved'
             ORDER BY b.start_time ASC";
 
