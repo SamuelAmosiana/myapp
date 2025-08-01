@@ -881,5 +881,52 @@ public function getTodaysClassesForStudent($course_id) {
     return $result ?: []; // Ensure an array is always returned
 }
 
+/**
+ * Approve a booking by lecturer
+ * @param int $booking_id
+ * @param int $lecturer_id
+ * @return bool
+ */
+public function approveBooking($booking_id, $lecturer_id) {
+    try {
+        // Update booking status to approved and set approved_by
+        $data = [
+            'status' => 'approved',
+            'approved_by' => $lecturer_id,
+            'updated_at' => date('Y-m-d H:i:s')
+        ];
+        
+        $result = $this->db->update('bookings', $data, 'booking_id = ?', [$booking_id]);
+        return $result > 0;
+    } catch (Exception $e) {
+        error_log("Error approving booking: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Reject a booking by lecturer
+ * @param int $booking_id
+ * @param int $lecturer_id
+ * @param string $remarks
+ * @return bool
+ */
+public function rejectBooking($booking_id, $lecturer_id, $remarks = '') {
+    try {
+        // Update booking status to cancelled and set approved_by with remarks
+        $data = [
+            'status' => 'cancelled',
+            'approved_by' => $lecturer_id,
+            'remarks' => $remarks,
+            'updated_at' => date('Y-m-d H:i:s')
+        ];
+        
+        $result = $this->db->update('bookings', $data, 'booking_id = ?', [$booking_id]);
+        return $result > 0;
+    } catch (Exception $e) {
+        error_log("Error rejecting booking: " . $e->getMessage());
+        return false;
+    }
+}
 }
 ?>

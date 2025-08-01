@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../../classes/Auth.php';
 require_once __DIR__ . '/../../classes/Room.php';
 require_once __DIR__ . '/../../classes/RBAC.php';
+require_once __DIR__ . '/../../config/Database.php';
 
 session_start();
 $auth = new Auth();
@@ -32,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $duration = (strtotime($end_dt) - strtotime($start_dt)) / 60;
 
     // Check for overlapping bookings
-    $db = $roomObj->db;
+    $db = Database::getInstance();
     $overlap = $db->fetchOne(
         "SELECT * FROM bookings WHERE room_id = ? AND ((start_time < ? AND end_time > ?) OR (start_time < ? AND end_time > ?) OR (start_time >= ? AND end_time <= ?)) AND status != 'cancelled'",
         [$room_id, $end_dt, $end_dt, $start_dt, $start_dt, $start_dt, $end_dt]

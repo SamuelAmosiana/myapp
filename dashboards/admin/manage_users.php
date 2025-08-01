@@ -31,45 +31,76 @@ $courses = $courseObj->getAllCourses();
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['add_user'])) {
-        // Add new user
-      $result = $userManager->addUser(
-            $_POST['name'],
-            $_POST['email'],
-            $_POST['password'],
-            $_POST['role'],
-            $_POST['course_id'] ?? null
-        );
+        // Validate input
+        $name = trim($_POST['name'] ?? '');
+        $email = trim($_POST['email'] ?? '');
+        $password = trim($_POST['password'] ?? '');
+        $role = trim($_POST['role'] ?? '');
+        $course_id = !empty($_POST['course_id']) ? $_POST['course_id'] : null;
         
-        if ($result) {
-            $successMessage = "User added successfully!";
+        // Basic validation
+        if (empty($name) || empty($email) || empty($password) || empty($role)) {
+            $errorMessage = "All fields are required.";
+        } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $errorMessage = "Please enter a valid email address.";
+        } elseif (strlen($password) < 6) {
+            $errorMessage = "Password must be at least 6 characters long.";
         } else {
-            $errorMessage = "Failed to add user. Please try again.";
+            // Add new user
+            $result = $userManager->addUser($name, $email, $password, $role, $course_id);
+            
+            if ($result) {
+                $successMessage = "User '$name' added successfully!";
+                // Clear form data
+                $_POST = [];
+            } else {
+                $errorMessage = "Failed to add user. Email might already exist or invalid role selected.";
+            }
         }
         $users = $userManager->getAllUsers(); // Refresh users after add
     } elseif (isset($_POST['update_user'])) {
-        // Update existing user
-        $result = $userManager->updateUser(
-            $_POST['user_id'],
-            $_POST['name'],
-            $_POST['email'],
-            $_POST['role'],
-            $_POST['course_id'] ?? null
-        );
+        // Validate input for update
+        $user_id = intval($_POST['user_id']);
+        $name = trim($_POST['name'] ?? '');
+        $email = trim($_POST['email'] ?? '');
+        $role = trim($_POST['role'] ?? '');
+        $course_id = !empty($_POST['course_id']) ? $_POST['course_id'] : null;
         
-        if ($result) {
-            $successMessage = "User updated successfully!";
+        // Basic validation
+        if (empty($name) || empty($email) || empty($role)) {
+            $errorMessage = "All fields are required for update.";
+        } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $errorMessage = "Please enter a valid email address.";
         } else {
-            $errorMessage = "Failed to update user. Please try again.";
+            // Update user
+            $result = $userManager->updateUser($user_id, $name, $email, $role, $course_id);
+            
+            if ($result) {
+                $successMessage = "User '$name' updated successfully!";
+            } else {
+                $errorMessage = "Failed to update user. Please try again.";
+            }
         }
         $users = $userManager->getAllUsers(); // Refresh users after update
     } elseif (isset($_POST['delete_user'])) {
         // Delete user
-        $result = $userManager->deleteUser($_POST['user_id']);
+        $user_id = intval($_POST['user_id']);
+        $result = $userManager->deleteUser($user_id);
         
-        if ($result) {
-            $successMessage = "User deleted successfully!";
+        // Handle new return format from deleteUser
+        if (is_array($result)) {
+            if ($result['success']) {
+                $successMessage = $result['message'];
+            } else {
+                $errorMessage = $result['message'];
+            }
         } else {
-            $errorMessage = "Failed to delete user. Please try again.";
+            // Fallback for old boolean return
+            if ($result) {
+                $successMessage = "User deleted successfully!";
+            } else {
+                $errorMessage = "Failed to delete user. User may have related records.";
+            }
         }
         $users = $userManager->getAllUsers(); // Refresh users after delete
     }
@@ -439,16 +470,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $(document).ready(function() {
             // Initialize DataTable
             $('#usersTable').DataTable({
-                responsive: true
+                responsive: true,
+                pageLength: 25,
+                order: [[0, 'desc']]
             });
 
-            // Handle edit button clicks
-            $('.edit-user').click(function() {
+            // Use event delegation for edit buttons (works with DataTables)
+            $(document).on('click', '.edit-user', function() {
                 const userId = $(this).data('userid');
                 const userName = $(this).data('name');
                 const userEmail = $(this).data('email');
                 const userRole = $(this).data('role');
                 const userCourse = $(this).data('course');
+
+                console.log('Edit user clicked:', userId, userName, userEmail, userRole, userCourse);
 
                 $('#editUserId').val(userId);
                 $('#editName').val(userName);
@@ -457,34 +492,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $('#editCourse').val(userCourse);
 
                 // Show/hide course field based on role
-                toggleCourseField(userRole);
+                toggleCourseField(userRole, 'edit');
 
                 // Show modal
                 $('#editUserModal').modal('show');
             });
 
-            // Handle delete button clicks
-            $('.delete-user').click(function() {
+            // Use event delegation for delete buttons (works with DataTables)
+            $(document).on('click', '.delete-user', function() {
                 const userId = $(this).data('userid');
+                const userName = $(this).closest('tr').find('td:nth-child(3)').text();
+                
+                console.log('Delete user clicked:', userId, userName);
+                
                 $('#deleteUserId').val(userId);
+                $('#deleteUserModal .modal-body p').html(`Are you sure you want to delete user <strong>${userName}</strong>? This action cannot be undone.`);
                 $('#deleteUserModal').modal('show');
             });
 
             // Toggle course field based on role selection
-            $('#role, #editRole').change(function() {
-                toggleCourseField($(this).val());
+            $('#role').change(function() {
+                toggleCourseField($(this).val(), 'add');
+            });
+            
+            $('#editRole').change(function() {
+                toggleCourseField($(this).val(), 'edit');
             });
 
-            function toggleCourseField(role) {
+            function toggleCourseField(role, context) {
+                const courseField = context === 'edit' ? '#editCourseField' : '#courseField';
+                const courseSelect = context === 'edit' ? '#editCourse' : '#course_id';
+                
                 if (role === 'student' || role === 'class_rep') {
-                    $('#courseField, #editCourseField').show();
+                    $(courseField).show();
+                    $(courseSelect).prop('required', true);
                 } else {
-                    $('#courseField, #editCourseField').hide();
+                    $(courseField).hide();
+                    $(courseSelect).prop('required', false).val('');
                 }
             }
 
             // Initialize course field visibility
-            toggleCourseField($('#role').val());
+            toggleCourseField($('#role').val(), 'add');
+            
+            // Form validation
+            $('form').on('submit', function(e) {
+                const form = $(this);
+                const requiredFields = form.find('input[required], select[required]');
+                let isValid = true;
+                
+                requiredFields.each(function() {
+                    if (!$(this).val()) {
+                        $(this).addClass('is-invalid');
+                        isValid = false;
+                    } else {
+                        $(this).removeClass('is-invalid');
+                    }
+                });
+                
+                if (!isValid) {
+                    e.preventDefault();
+                    alert('Please fill in all required fields.');
+                }
+            });
+            
+            // Remove validation styling on input
+            $('input, select').on('input change', function() {
+                $(this).removeClass('is-invalid');
+            });
         });
     </script>
 </body>

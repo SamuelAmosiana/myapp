@@ -128,13 +128,41 @@ class Database {
      */
     public function update($table, $data, $where, $whereParams = []) {
         $setClause = [];
+        $params = [];
+        
+        // Build SET clause with named parameters
         foreach ($data as $key => $value) {
-            $setClause[] = "{$key} = :{$key}";
+            $setClause[] = "{$key} = :set_{$key}";
+            $params["set_{$key}"] = $value;
         }
         $setClause = implode(', ', $setClause);
         
+        // Add WHERE parameters
+        if (!empty($whereParams)) {
+            if (is_array($whereParams)) {
+                // If whereParams is associative array, use as named parameters
+                if (array_keys($whereParams) !== range(0, count($whereParams) - 1)) {
+                    $params = array_merge($params, $whereParams);
+                } else {
+                    // If whereParams is indexed array, convert to named parameters
+                    $whereParamNames = [];
+                    $whereClause = $where;
+                    $paramIndex = 0;
+                    while (strpos($whereClause, '?') !== false) {
+                        $paramName = "where_param_{$paramIndex}";
+                        $whereParamNames[] = $paramName;
+                        $whereClause = preg_replace('/\?/', ":{$paramName}", $whereClause, 1);
+                        if (isset($whereParams[$paramIndex])) {
+                            $params[$paramName] = $whereParams[$paramIndex];
+                        }
+                        $paramIndex++;
+                    }
+                    $where = $whereClause;
+                }
+            }
+        }
+        
         $query = "UPDATE {$table} SET {$setClause} WHERE {$where}";
-        $params = array_merge($data, $whereParams);
         
         $stmt = $this->query($query, $params);
         return $stmt->rowCount();
