@@ -928,5 +928,147 @@ public function rejectBooking($booking_id, $lecturer_id, $remarks = '') {
         return false;
     }
 }
+
+/**
+ * Get rooms that are currently available (not in use right now)
+ * This method checks real-time availability based on current time vs booking times
+ * @return array Array of available rooms with room details
+ */
+public function getAvailableRoomsNow() {
+    try {
+        // SQL query to get rooms that are NOT currently booked
+        // A room is considered "in use" if there's an approved booking for TODAY
+        // where the current time is between start_time and end_time
+        $sql = "SELECT r.room_id, r.room_name, r.location, r.capacity, r.facilities, r.room_type
+                FROM rooms r
+                WHERE r.room_id NOT IN (
+                    -- Subquery: Find rooms that are currently in use
+                    SELECT DISTINCT b.room_id
+                    FROM bookings b
+                    WHERE b.booking_date = CURDATE()  -- Only today's bookings
+                      AND b.status = 'approved'       -- Only approved bookings
+                      AND NOW() BETWEEN 
+                          CONCAT(b.booking_date, ' ', b.start_time) AND 
+                          CONCAT(b.booking_date, ' ', b.end_time)
+                      -- Current time is between start and end time of the booking
+                )
+                ORDER BY r.room_name ASC";
+        
+        $availableRooms = $this->db->fetchAll($sql);
+        
+        // Return empty array if no results to ensure consistent return type
+        return $availableRooms ?: [];
+        
+    } catch (Exception $e) {
+        error_log("Error fetching available rooms: " . $e->getMessage());
+        return []; // Return empty array on error
+    }
+}
+
+/**
+ * Get detailed room availability information including current bookings and next availability
+ * @return array Comprehensive room availability data
+ */
+public function getDetailedRoomAvailability() {
+    try {
+        $sql = "SELECT 
+                    r.room_id, r.room_name, r.location, r.capacity, r.facilities, r.room_type,
+                    -- Current booking information
+                    cb.booking_id as current_booking_id,
+                    cb.start_time as current_start,
+                    cb.end_time as current_end,
+                    cb.course_id as current_course_id,
+                    cc.course_name as current_course_name,
+                    cu.name as current_booked_by,
+                    -- Next booking information
+                    nb.booking_id as next_booking_id,
+                    nb.start_time as next_start,
+                    nb.end_time as next_end,
+                    nb.booking_date as next_date,
+                    nc.course_name as next_course_name,
+                    nu.name as next_booked_by,
+                    -- Calculate time until next booking for available rooms
+                    CASE 
+                        WHEN cb.booking_id IS NOT NULL THEN 'occupied'
+                        WHEN nb.booking_id IS NOT NULL THEN 'available_until'
+                        ELSE 'available_all_day'
+                    END as availability_status
+                FROM rooms r
+                -- Current bookings (rooms currently in use)
+                LEFT JOIN bookings cb ON r.room_id = cb.room_id 
+                    AND cb.booking_date = CURDATE()
+                    AND cb.status = 'approved'
+                    AND NOW() BETWEEN CONCAT(cb.booking_date, ' ', cb.start_time) 
+                                  AND CONCAT(cb.booking_date, ' ', cb.end_time)
+                -- Current course info
+                LEFT JOIN courses cc ON cb.course_id = cc.course_id
+                LEFT JOIN users cu ON cb.booked_by = cu.user_id
+                -- Next booking for available rooms (today only)
+                LEFT JOIN bookings nb ON r.room_id = nb.room_id 
+                    AND nb.booking_date = CURDATE()
+                    AND nb.status = 'approved'
+                    AND nb.start_time > TIME(NOW())
+                    AND cb.booking_id IS NULL  -- Only for currently available rooms
+                    AND nb.booking_id = (
+                        SELECT MIN(b2.booking_id) 
+                        FROM bookings b2 
+                        WHERE b2.room_id = r.room_id 
+                        AND b2.booking_date = CURDATE()
+                        AND b2.status = 'approved'
+                        AND b2.start_time > TIME(NOW())
+                    )
+                -- Next course info
+                LEFT JOIN courses nc ON nb.course_id = nc.course_id
+                LEFT JOIN users nu ON nb.booked_by = nu.user_id
+                ORDER BY r.room_name ASC";
+        
+        return $this->db->fetchAll($sql) ?: [];
+        
+    } catch (Exception $e) {
+        error_log("Error fetching detailed room availability: " . $e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Get all bookings for today with detailed timing information
+ * @return array Today's bookings with time calculations
+ */
+public function getTodayBookingsWithTiming() {
+    try {
+        $sql = "SELECT 
+                    b.booking_id, b.start_time, b.end_time, b.status,
+                    r.room_name, r.location, r.capacity,
+                    c.course_name, c.course_code,
+                    u.name as booked_by_name,
+                    l.name as lecturer_name,
+                    -- Calculate if booking is current, past, or future
+                    CASE 
+                        WHEN NOW() < CONCAT(b.booking_date, ' ', b.start_time) THEN 'upcoming'
+                        WHEN NOW() BETWEEN CONCAT(b.booking_date, ' ', b.start_time) 
+                                       AND CONCAT(b.booking_date, ' ', b.end_time) THEN 'current'
+                        ELSE 'completed'
+                    END as booking_status,
+                    -- Time calculations
+                    TIMESTAMPDIFF(MINUTE, NOW(), CONCAT(b.booking_date, ' ', b.start_time)) as minutes_until_start,
+                    TIMESTAMPDIFF(MINUTE, NOW(), CONCAT(b.booking_date, ' ', b.end_time)) as minutes_until_end,
+                    TIMESTAMPDIFF(MINUTE, CONCAT(b.booking_date, ' ', b.start_time), 
+                                          CONCAT(b.booking_date, ' ', b.end_time)) as duration_minutes
+                FROM bookings b
+                JOIN rooms r ON b.room_id = r.room_id
+                JOIN courses c ON b.course_id = c.course_id
+                JOIN users u ON b.booked_by = u.user_id
+                LEFT JOIN users l ON b.lecturer_id = l.user_id
+                WHERE b.booking_date = CURDATE()
+                  AND b.status = 'approved'
+                ORDER BY b.start_time ASC";
+        
+        return $this->db->fetchAll($sql) ?: [];
+        
+    } catch (Exception $e) {
+        error_log("Error fetching today's bookings with timing: " . $e->getMessage());
+        return [];
+    }
+}
 }
 ?>

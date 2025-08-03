@@ -201,6 +201,9 @@ $notifications = $auth->getNotifications(false, 10);
                             <a class="nav-link" href="manage_rooms.php">
                                 <i class="fas fa-building"></i> Manage Rooms
                             </a>
+                            <a class="nav-link" href="room_availability.php">
+                                <i class="fas fa-clock"></i> Room Availability
+                            </a>
                             <a class="nav-link" href="bookings.php">
                                 <i class="fas fa-calendar-alt"></i> All Bookings
                             </a>

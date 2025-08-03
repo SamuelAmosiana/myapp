@@ -249,6 +249,9 @@ $availableRooms = $auth->getAvailableRoomsToday();
                             <a class="nav-link" href="schedule_class.php">
                                 <i class="fas fa-clock"></i> Schedule Class
                             </a>
+                            <a class="nav-link" href="room_availability.php">
+                                <i class="fas fa-eye"></i> Room Availability
+                            </a>
                             <a class="nav-link" href="view_responses.php">
                                 <i class="fas fa-comments"></i> Lecturer Responses
                             </a>
